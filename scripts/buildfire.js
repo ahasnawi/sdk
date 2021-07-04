@@ -695,35 +695,35 @@ var buildfire = {
                         files.push('styles/appStyle.css');
                     }
                 }
-
-                // TODO: verify why in attachCSSFiles and if should not run if disableTheme === true ?
-                var scripts = document.getElementsByTagName("script");
-
-                for (var i = 0; i < scripts.length; i++) {
-                    var src = scripts[i].src;
-
-                    if (src.indexOf('buildfire.js') > 0) {
-                        base = src.replace('/scripts/buildfire.js', '');
-                        break;
-                    } else if (src.indexOf('buildfire.min.js') > 0) {
-                        base = src.replace('/scripts/buildfire.min.js', '');
-                        break;
-                    }
-                    else if (src.match(/(\/scripts\/_bundle\S+.js)/gi)) {
-                        base = src.replace(/(\/scripts\/_bundle\S+.js)/gi, '');
-                        break;
-                    }
-                }
             }
             
-            var bfCustomButtonsStyles = document.createElement('style');
-            bfCustomButtonsStyles.id = 'bfCustomButtons';
-            bfCustomButtonsStyles.rel = 'stylesheet';
-            bfCustomButtonsStyles.innerHTML = buildfire.buttonCustomStyle.get();
-            (document.head || document.body || document).appendChild(bfCustomButtonsStyles);
+            // TODO: verify why in attachCSSFiles and if should not run if disableTheme === true ?
+            var scripts = document.getElementsByTagName("script");
 
-            if (enableMDTheme) {
-                buildfire.appearance.getAppTheme(function(err, appTheme) {
+            for (var i = 0; i < scripts.length; i++) {
+                var src = scripts[i].src;
+
+                if (src.indexOf('buildfire.js') > 0) {
+                    base = src.replace('/scripts/buildfire.js', '');
+                    break;
+                } else if (src.indexOf('buildfire.min.js') > 0) {
+                    base = src.replace('/scripts/buildfire.min.js', '');
+                    break;
+                }
+                else if (src.match(/(\/scripts\/_bundle\S+.js)/gi)) {
+                    base = src.replace(/(\/scripts\/_bundle\S+.js)/gi, '');
+                    break;
+                }
+            }
+            buildfire.appearance.getAppTheme(function(err, appTheme) {
+                console.log("!!!!!!!!!!!!appTheme", appTheme);
+                var bfAppTheme = document.createElement('style');
+                bfAppTheme.id = 'bfAppTheme';
+                bfAppTheme.rel = 'stylesheet';
+                bfAppTheme.innerHTML = buildfire.appearance._getAppThemeCssVariables(appTheme);
+                (document.head || document.body || document).appendChild(bfAppTheme);
+                files.push('styles/bfUIElements.css');
+                if (enableMDTheme) {
                     var styleElement = document.createElement('style');
                     styleElement.id = 'appMDTheme';
                     styleElement.type = 'text/css';
@@ -805,9 +805,8 @@ var buildfire = {
                             + '.mdc-theme--secondary-bg { background-color: #018786 !important; background-color: var(--mdc-theme-secondary, #018786) !important;}';
                     styleElement.innerHTML = css;
                     (document.head || document.body || document).appendChild(styleElement);
-
-                });
-            }
+                }
+            });
 
             if (base[base.length - 1] != "/"){
                 base += '/';
@@ -965,6 +964,32 @@ var buildfire = {
                 var p = new Packet(null, "appearance.fullScreenMode.disable");
                 buildfire._sendPacket(p, callback);
             },
+        },
+        _getAppThemeCssVariables: function(appTheme) {
+            var css = ''
+            if ( typeof(appTheme.fontId) !== 'undefined' && appTheme.fontId !== 'Arial'
+            && appTheme.fontId !== 'Sans-Serif' && appTheme.fontId !== 'Helvetica'
+            && appTheme.fontId !== 'Shadows+into+Light'&& appTheme.fontId !== 'Asap+condensed') {
+                css += '@import url(\'https://fonts.googleapis.com/css?family='+ appTheme.fontName +'\');'
+            }
+            css += ':root {'
+                + '--bf-theme-primary: ' + appTheme.colors.primaryTheme + ' !important;'
+                + '--bf-theme-success: ' + appTheme.colors.successTheme + ' !important;'
+                + '--bf-theme-warning: ' + appTheme.colors.warningTheme + ' !important;'
+                + '--bf-theme-info: ' + appTheme.colors.infoTheme + ' !important;'
+                + '--bf-theme-default: ' + appTheme.colors.defaultTheme + ' !important;'
+                + '--bf-theme-danger: ' + appTheme.colors.dangerTheme + ' !important;'
+                + '--bf-theme-background: ' + appTheme.colors.backgroundColor + ' !important;'
+                + '--bf-theme-body-text: ' + appTheme.colors.bodyText + ' !important;'
+                + '--bf-theme-footer-background: ' + appTheme.colors.footerMenuBackgroundColor + ' !important;'
+                + '--bf-theme-footer-icon: ' + appTheme.colors.footerMenuIconColor + ' !important;'
+                + '--bf-theme-header-text: ' + appTheme.colors.headerText + ' !important;'
+                + '--bf-theme-icons: ' + appTheme.colors.icons + ' !important;'
+                + '--bf-theme-title-bar: ' + appTheme.colors.titleBar + ' !important;'
+                + '--bf-theme-title-bar-text-icons: ' + appTheme.colors.titleBarTextAndIcons + ' !important;'
+                + '--bf-font-family:' + appTheme.fontName + ', sans-serif !important'                
+            +'}';
+            return css;
         }
     }
     /// ref: https://github.com/BuildFire/sdk/wiki/How-to-capture-Analytics-for-your-plugin
@@ -3110,23 +3135,26 @@ var buildfire = {
                         if (options._bfInitialize === true) {
                             return originalTinymceInit(options);
                         }
+                        buildfire.appearance.getAppTheme(function(err, appTheme) {
+                            if (options.content_style) {
+                                options.content_style += buildfire.appearance._getAppThemeCssVariables(appTheme);
+                            } else {
+                                options.content_style = buildfire.appearance._getAppThemeCssVariables(appTheme);
+                            }
+                        });
                         if (options.content_css) {
                             if (options.content_css instanceof Array) {
-                                options.content_css.push(appTheme);
+                                options.content_css.push(appTheme, '/styles/bfUIElements.css');
                             } else {
-                                options.content_css = [options.content_css, appTheme];
+                                var splittedStyleFiles = options.content_css.split(',');
+                                splittedStyleFiles.push(appTheme, '/styles/bfUIElements.css');
+                                options.content_css = splittedStyleFiles;
                             }
                         } else {
-                            options.content_css = appTheme;
+                            options.content_css = [appTheme , '/styles/bfUIElements.css'];
                         }
-                        if(options.content_style) {
-                            options.content_style += buildfire.buttonCustomStyle.get();
-                        } else {
-                            options.content_style = buildfire.buttonCustomStyle.get();
-                        }
-                        
-                        options.plugins = 'buttons';
-                        options.toolbar = 'buttons';
+                        options.plugins = 'bf_buttons';
+                        options.toolbar = 'bf_buttons';
                         options.valid_elements= "@[id|class|style|title|dir<ltr?rtl|lang|xml::lang],*[*]";
                         options._bfInitialize = true;
                         return originalTinymceInit(options);
@@ -3135,38 +3163,6 @@ var buildfire = {
             } 
         }
     },
-    buttonCustomStyle: {
-        get: function () {
-            var css = '';
-            css +=  ':root {'
-                + '--bf-theme-primary: #007bff !important;'
-                + '--bf-theme-success: #28a745 !important;'
-                + '--bf-theme-warning: #ffc107 !important;'
-                + '--bf-theme-info: #17a2b8 !important;'
-                + '--bf-theme-default: #6c757d !important;'
-                + '--bf-theme-danger: #dc3545 !important;}'
-                + '.bf-btn-primary{ color: white !important; background-color: var(--bf-theme-primary)}'
-                + '.bf-btn-success{ color: white !important; background-color: var(--bf-theme-success)}'
-                + '.bf-btn-warning{ color: white !important; background-color: var(--bf-theme-warning)}'
-                + '.bf-btn-info{ color: white !important; background-color: var(--bf-theme-info)}'
-                + '.bf-btn-default{ color: white !important; background-color: var(--bf-theme-default)}'
-                + '.bf-btn-danger{ color: white !important; background-color: var(--bf-theme-danger)}'
-                + '.bf-text-primary{ color: var(--bf-theme-primary) !important}'
-                + '.bf-text-success{ color: var(--bf-theme-success) !important}'
-                + '.bf-text-warning{ color: var(--bf-theme-warning) !important}'
-                + '.bf-text-info{ color: var(--bf-theme-info) !important}'
-                + '.bf-text-default{ color: var(--bf-theme-default) !important}'
-                + '.bf-text-danger{ color: var(--bf-theme-danger) !important}'
-                + '.bf-border-primary{ border:1px solid var(--bf-theme-primary) !important;}'
-                + '.btn {display: inline-block;margin-bottom: 0;font-weight: normal;text-align: center;'
-                + 'vertical-align: middle;-ms-touch-action: manipulation;touch-action: manipulation;cursor: pointer;background-image: none;'
-                + 'border: 1px solid transparent;white-space: nowrap;padding: 6px 12px;font-size: 13px;line-height: 20px;font-weight: 300;'
-                + 'border-radius: 4px;-webkit-user-select: none;-moz-user-select: none;-ms-user-select: none;user-select: none;-moz-transition: all 0.35s;'
-                + '-o-transition: all 0.35s;-webkit-transition: all 0.35s;transition: all 0.35s;'
-                +'}'
-            return css;
-        }
-    }
 };
 
 window.parsedQuerystring = buildfire.parseQueryString();

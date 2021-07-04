@@ -1,14 +1,12 @@
-tinymce.PluginManager.add("buttons", function (editor, url) {
-    console.log('!!!!!editor', editor);
+tinymce.PluginManager.add("bf_buttons", function (editor, url) {
 
     var appContext = buildfire.getContext();
     var appThemeUrl = encodeURIComponent(appContext.endPoints.appHost + '/api/app/styles/appTheme.css?appId=' + appContext.appId + '&liveMode=' + appContext.liveMode);
     var queryString = '?appThemeUrl=' + appThemeUrl;
-    editor.addButton("buttons", {
+    editor.addButton("bf_buttons", {
         text: "Buttons",
         icon: false,
         onclick: function () {
-            window.currentEditor = editor;
             editor.windowManager.open({
                 title: "Buttons",
                 url: url + "/dialog.html" +  queryString,
@@ -33,12 +31,12 @@ tinymce.PluginManager.add("buttons", function (editor, url) {
                                     modal.close();  
                                     buildfire.actionItems.showDialog(
                                         {},
-                                        { allowNoAction: false, showIcon: false, showTitle: false },
+                                        { allowNoAction: true, showIcon: false, showTitle: false },
                                         (err, actionItem) => {
                                             if (err) return console.error(err);
                                             if (!actionItem) return;
                                             let stringifiedActionItem = escape(JSON.stringify(actionItem));
-                                            let content = `<a class="${result.type === 'button' ? 'btn bf-btn-' + result.buttonStyle : 'bf-text-' + result.buttonStyle}" data-execute="${stringifiedActionItem}"
+                                            let content = `<a class="${result.type === 'button' ? 'bf-btn bf-btn-' + result.buttonStyle : 'bf-text-' + result.buttonStyle}" data-execute="${stringifiedActionItem}"
                                             onclick="buildfire.actionItems.execute(JSON.parse(unescape('${stringifiedActionItem}')), ()=>{})">${actionItem.title}</a>&nbsp;`
                                             editor.insertContent(content);
                                         }
@@ -56,7 +54,6 @@ tinymce.PluginManager.add("buttons", function (editor, url) {
         getMetadata: function () {
             return {
                 name: "Buttons Plugin",
-                // url: ""
             };
         },
     };

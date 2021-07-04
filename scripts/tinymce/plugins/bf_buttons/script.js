@@ -1,15 +1,15 @@
 const params = new URLSearchParams(window.location.search);
 let styleHref = params.get('appThemeUrl') + '&liveMode=' + params.get('liveMode');
 let buttonAndLinksStyles = ['primary', 'success', 'info', 'warning', 'danger', 'default'];
-let stylesClone = window.parent.document.getElementById('bfCustomButtons').cloneNode(true);
-document.head.appendChild(stylesClone);
+let dialogData = {buttonStyle : 'primary', type: 'button'};
 
-document.write(`<link href=${styleHref} rel='stylesheet' onload='render()'> </link>`);
+if (window.parent.document.getElementById('bfAppTheme')) {
+    let stylesClone = window.parent.document.getElementById('bfAppTheme').cloneNode(true);
+    document.head.appendChild(stylesClone);
+}
 
+document.write(`<link href='${styleHref}' rel='stylesheet' onload='render()'> </link>`);
 
-
-window.dialogData = {buttonStyle : 'primary', type: 'button'};
-let dialogData = {};
 function render() {
     function createElements(type) {
         let container = document.getElementById(type === 'buttons' ? 'buttonsContainer' : 'linksContainer');
@@ -18,7 +18,7 @@ function render() {
             buttonOrLinkDiv.className = 'col-xs-6 pull-left margin-top-20';
             buttonOrLinkDiv.className = index === 0 ? buttonOrLinkDiv.className + ' bf-border-primary' : buttonOrLinkDiv.className;
             let buttonOrLink = document.createElement('a');
-            buttonOrLink.className = type === 'buttons' ? `btn bf-btn-${style} stretch` : `bf-text-${style}`;
+            buttonOrLink.className = type === 'buttons' ? `bf-btn bf-btn-${style} stretch` : `bf-text-${style}`;
             let itemToClick = type === 'buttons' ? buttonOrLink : buttonOrLinkDiv;
             itemToClick.onclick = () => {
                 selectButtonType(style, type === 'buttons' ? 'button' : 'link');
@@ -43,7 +43,6 @@ const resetBorder = (type) => {
     }
 }
 const selectButtonType = (buttonStyle, type) =>  {
-    // window.dialogData = {buttonStyle, type};
     dialogData = {buttonStyle, type};
 }
 window.validate = (options, callback) => {
@@ -52,11 +51,11 @@ window.validate = (options, callback) => {
 document.getElementsByName('buttonsTypes').forEach((button) => {
     button.onclick = (e) => {
         if(e.target.value === 'links') {
-            window.dialogData = {buttonStyle : 'primary', type: 'link'};
+            dialogData = {buttonStyle : 'primary', type: 'link'};
             buttonsContainer.style.display = 'none';
             linksContainer.style.display = 'block';
         } else if (e.target.value === 'buttons') {
-            window.dialogData = {buttonStyle : 'primary', type: 'button'};
+            dialogData = {buttonStyle : 'primary', type: 'button'};
             buttonsContainer.style.display = 'block';
             linksContainer.style.display = 'none';
         }

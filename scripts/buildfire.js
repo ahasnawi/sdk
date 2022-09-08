@@ -2688,8 +2688,14 @@ var buildfire = {
 				this._handleBgImage(originalSrc, resultSrc, localPath, options, element, callback);
 			}
 		},
+		
 		_imageErrorFallback: function (originalSrc, resultSrc, options, element, callback) {
-			var path = this._getImageLibLocalPath(originalSrc);
+			var path = null;
+			if (buildfire.isWeb()) {
+				path = "/plugins/myPlugin/logo11w.png";
+			} else {
+				path = this._getImageLibLocalPath(originalSrc);
+			}
 
 			if (options.imageProcess === 'crop') {
 				buildfire.imageLib.local.cropImage(path, options, imageProcessCallback);
@@ -2701,7 +2707,7 @@ var buildfire = {
 					if (element.tagName === 'IMG') {
 						element.style.setProperty('opacity', '0', 'important');
 						element.src = result;
-		
+
 						element.onload = function () {
 							element.style.removeProperty('opacity');
 							if (callback) callback(result);
@@ -2738,7 +2744,7 @@ var buildfire = {
 			img.onerror = function () {
 				// let originalCallback = callback;
 				// let callback = function() {
-					
+
 				// }
 				self._imageErrorFallback(originalSrc, resultSrc, options, element, (err, result) => {
 					if (err) {
@@ -2768,7 +2774,7 @@ var buildfire = {
 		},
 		_getImageCacheLocalPath: function (string) {
 			if (buildfire.isWeb()) {
-				return string;
+				return "/plugins/myPlugin/logo11w__c.png";
 			}
 
 			string = string.replace(/(http|https):\/\/\S{0,8}.cloudimg.io\//g, '');

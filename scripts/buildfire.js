@@ -2576,8 +2576,8 @@ var buildfire = {
 				} else {
 					result = url;
 				}
-
-				this._handleElement(element, result, callback);
+				options.imageProcess = 'resize';
+				this._handleElement(url, result, options, element, callback);
 
 				return result;
 			}
@@ -2658,52 +2658,99 @@ var buildfire = {
 
 			result += '&width=' + width + '&height=' + height;
 
-
-			this._handleElement(element, result, callback);
+			options.imageProcess = 'crop';
+			this._handleElement(url, result, options, element, callback);
 
 			return result;
 		},
-		_handleElement: function (element, src, callback) {
-			if (!element || !src) return;
-
-			var path = this._getLocalPath(src);
+		_handleElement: function (originalSrc, resultSrc, options, element, callback) {
+			if (!element || !resultSrc) return;
+			var self  = this;
+			var localPath = this._getImageCacheLocalPath(resultSrc);
 
 			if (element.tagName === 'IMG') {
 				element.style.setProperty('opacity', '0', 'important');
-				element.src = path;
+				element.src = localPath;
 
 				element.onload = function () {
 					element.style.removeProperty('opacity');
-					if (callback) callback(path);
+					if (callback) callback(localPath);
 				};
 
 				element.onerror = function () {
-					element.src = src;
-					var p = new Packet(null, 'imageCache.download', src);
-					buildfire._sendPacket(p, function () {
-						if (callback) callback(path);
-					});
+					self._imageErrorFallback(originalSrc, resultSrc, options, element, callback);
+					// var p = new Packet(null, 'imageCache.download', resultSrc);
+					// buildfire._sendPacket(p, function () {
+					// 	if (callback) callback(localPath); (question)?
+					// });
 				};
 			} else {
-				this._handleBgImage(element, path, src, callback);
+				this._handleBgImage(originalSrc, resultSrc, localPath, options, element, callback);
 			}
 		},
-		_handleBgImage: function (element, path, src, callback) {
-			applyStyle(element, path);
+		_imageErrorFallback: function (originalSrc, resultSrc, options, element, callback) {
+			var path = this._getImageLibLocalPath(originalSrc);
+
+			if (options.imageProcess === 'crop') {
+				buildfire.imageLib.local.cropImage(path, options, imageProcessCallback);
+			} else if (options.imageProcess === 'resize') {
+				buildfire.imageLib.local.resizeImage(path, options, imageProcessCallback);
+			}
+			function imageProcessCallback(err, result) {
+				if (!err) {
+					if (element.tagName === 'IMG') {
+						element.style.setProperty('opacity', '0', 'important');
+						element.src = result;
+		
+						element.onload = function () {
+							element.style.removeProperty('opacity');
+							if (callback) callback(result);
+						};
+						element.onerror = function () {
+							element.src = resultSrc;
+							if (callback) callback(resultSrc);
+						};
+					} else {
+						callback(null, result);
+					}
+				} else {
+					if (element.tagName === 'IMG') {
+						element.src = resultSrc;
+						if (callback) callback(resultSrc);
+					} else {
+						callback(err, null);
+					}
+					console.log('Error occurred while cropping image: ', err);
+				}
+			}
+		},
+		_handleBgImage: function (originalSrc, resultSrc, localPath, options, element, callback) {
+			var self = this;
+			applyStyle(element, localPath);
 
 			var img = new Image();
-			img.src = path;
+			img.src = localPath;
 
 			img.onload = function () {
-				if (callback) callback(path);
+				if (callback) callback(localPath);
 			};
 
 			img.onerror = function () {
-				applyStyle(element, src);
-				var p = new Packet(null, 'imageCache.download', src);
+				// let originalCallback = callback;
+				// let callback = function() {
+					
+				// }
+				self._imageErrorFallback(originalSrc, resultSrc, options, element, (err, result) => {
+					if (err) {
+						return applyStyle(element, resultSrc);
+					}
+					applyStyle(element, result);
+					document.getElementById('lala').src = result;
+				});
+				var p = new Packet(null, 'imageCache.download', resultSrc);
 				buildfire._sendPacket(p, function (error, localPath) {
 					if (error) {
-						if (callback) callback(src);
+						if (callback) callback(resultSrc);
 					}
 					window.requestAnimationFrame(function () {
 						if (callback) callback(localPath);
@@ -2719,7 +2766,7 @@ var buildfire = {
 				ele.style.setProperty('background-image', backgroundCss, 'important');
 			}
 		},
-		_getLocalPath: function (string) {
+		_getImageCacheLocalPath: function (string) {
 			if (buildfire.isWeb()) {
 				return string;
 			}
@@ -2738,6 +2785,12 @@ var buildfire = {
 			}
 
 			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageCache/images') + '/' + hash + extension;
+		},
+		_getImageLibLocalPath: function (string) {
+			let lastIndex = string.lastIndexOf('/');
+			let imageName = string.slice(lastIndex + 1);
+			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageLib') + '/' + imageName;
+			// return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageLib') + '/' + 'zombiesbrand.png';
 		},
 		getCompression: function (c) {
 			var result = 'n/';
@@ -2776,7 +2829,7 @@ var buildfire = {
 			}
 			, resizeImage: function (url, options, callback) {
 
-				//var ratio = options.disablePixelRation ? 1 : window.devicePixelRatio;
+				var ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
 				if (!options)
 					options = {width: window.innerWidth};
 				else if (typeof(options) != 'object')
@@ -2786,28 +2839,36 @@ var buildfire = {
 				if (options.height == 'full') options.height = window.innerHeight;
 
 				var localURL = buildfire.imageLib.local.toLocalPath(url);
-				if (localURL) {
+				if (url) {
 					var img = new Image();
-					img.src = localURL;
+					img.src = url;
 					img.onload = function () {
 
-						if (options.width && !options.height)
-							options.height = (img.height * options.width) / img.width;
-						else if (!options.width && options.height)
-							options.width = (img.width * options.height) / img.width;
+						let resizeWidth, resizeHeight;
+						let optionsRatio = options.width / options.height;
+						let imageRatio = img.width / img.height;
+						if (imageRatio > optionsRatio) {
+							resizeWidth = options.width;
+							resizeHeight = options.width / imageRatio;
+						} else {
+							resizeHeight = options.height;
+							resizeWidth = options.height * imageRatio;
+						}
 
 						var canvas = document.createElement('canvas');
 						var ctx = canvas.getContext('2d');
-						canvas.width = options.width;
-						canvas.height = options.height;
 
+						let finalWidth = resizeWidth * ratio;
+						let finalHeight = resizeHeight * ratio;
+						canvas.width = finalWidth;
+						canvas.height = finalHeight;
 
-						ctx.drawImage(img, 0, 0, options.width, options.height);
+						ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
 
 						callback(null, canvas.toDataURL());
 					};
 					img.onerror = function () {
-						callback(null, buildfire.imageLib.resizeImage(url, options));
+						callback('error in loading canvas', null);
 					};
 				}
 				else
@@ -2818,10 +2879,10 @@ var buildfire = {
 			, cropImage: function (url, options, callback) {
 
 				//If we are online, use the normal crop image.
-				if (window.navigator.onLine) {
-					callback(null, buildfire.imageLib.cropImage(url, options));
-					return;
-				}
+				// if (window.navigator.onLine) {
+				// 	callback(null, buildfire.imageLib.cropImage(url, options));
+				// 	return;
+				// }
 
 				var ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
 
@@ -2834,53 +2895,43 @@ var buildfire = {
 				if (options.height == 'full') options.height = window.innerHeight;
 
 				var localURL = buildfire.imageLib.local.toLocalPath(url);
-				if (localURL) {
+				if (url) {
 					var img = new Image();
-					img.src = localURL;
+					img.src = url;
 					img.onload = function () {
 						var canvas = document.createElement('canvas');
 						var ctx = canvas.getContext('2d');
-						var dim = {
-							width:0,
-							height:0
+						var cuttingDimension = {
+							width: 0,
+							height: 0
 						};
-						var offset = {
-							x:0,
-							y:0
+						var cuttingOffset = {
+							x: 0,
+							y: 0
 						};
-						if (options.width !== options.height) {
-							if (options.width > options.height) {
-								dim.width = options.width;
-								dim.height = (img.height * options.width) / img.width;
-								offset.y = (options.height-dim.height)/2;
-							} else {
-								dim.width = (img.width * options.height) / img.height;
-								dim.height = options.height;
-								offset.x = (options.width-dim.width)/2;
-							}
+						let optionsRatio = options.width / options.height;
+						let imageRatio = img.width / img.height;
+						if (imageRatio > optionsRatio) {
+							cuttingDimension.height = img.height;
+							cuttingDimension.width = img.height * optionsRatio;
+							cuttingOffset.x = (img.width - cuttingDimension.width) / 2;
+							cuttingOffset.y = 0;
 						} else {
-							if (img.width < img.height) {
-								dim.width = options.width;
-								dim.height = (img.height * options.width) / img.width;
-								offset.y = (options.height-dim.height)/2;
-							} else {
-								dim.width = (img.width * options.height) / img.height;
-								dim.height = options.height;
-								offset.x = (options.width-dim.width)/2;
-							}
+							cuttingDimension.width = img.width;
+							cuttingDimension.height = img.width / optionsRatio;
+							cuttingOffset.y = (img.height - cuttingDimension.height) / 2;
+							cuttingOffset.x = 0;
 						}
-						dim.width      *= ratio;
-						dim.height     *= ratio;
-						options.width  *= ratio;
-						options.height *= ratio;
 
-						canvas.width = options.width;
-						canvas.height = options.height;
-						ctx.drawImage(img, offset.x, offset.y, dim.width, dim.height);
+						let providedWidth = options.width * ratio;
+						let providedHeight = options.height * ratio;
+						canvas.width = providedWidth;
+						canvas.height = providedHeight;
+						ctx.drawImage(img, cuttingOffset.x, cuttingOffset.y, cuttingDimension.width, cuttingDimension.height, 0, 0, providedWidth , providedHeight);
 						callback(null, canvas.toDataURL());
 					};
 					img.onerror = function () {
-						callback(null, buildfire.imageLib.cropImage(url, options));
+						callback('error in loading canvas', null);
 					};
 				} else {
 					callback(null, buildfire.imageLib.cropImage(url, options));

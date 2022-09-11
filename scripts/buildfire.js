@@ -2444,7 +2444,7 @@ var buildfire = {
 					get third_width() {
 						return this.findNearest(3);
 					},
-					get fourth_width() {
+					get quarter_width() {
 						return this.findNearest(4);
 					},
 					get fifth_width() {
@@ -2500,170 +2500,107 @@ var buildfire = {
 		// disablePixelRation: bool
 		// }
 		, resizeImage: function (url, options, element, callback) {
-			if (!url) return null;
-			// return unsupported file types
-			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg)(?!.)/gi.test(url))) {
-				var filetype = (/.{0,4}(?!.)/g.exec(url) || ['Selected'])[0];
-				console.warn(filetype + ' files are not supported by resizeImage. Returning original URL: ' + url);
-				return url;
-			}
-
-			if (!options)
-				options = {width: window.innerWidth};
-			else if (typeof(options) != 'object')
-				throw ('options not an object');
-
-			if(!options.disablePixelRation && options.disablePixelRatio) {
-				options.disablePixelRation = options.disablePixelRatio;
-			}
-			if(!options.disablePixelRatio && options.disablePixelRation) {
-				options.disablePixelRatio = options.disablePixelRation;
-			}
-
-			var ratio = options.disablePixelRation?1:window.devicePixelRatio;
-
-			// Don't pass any value under 1
-			if(ratio < 1){
-				var ratio = 1;
-			}
-
-			if (options.width == 'full') options.width = window.innerWidth;
-			if (options.height == 'full') options.height = window.innerHeight;
-
-			var root;
-
-			{
-				//var protocol = window.location.protocol == "https:" ? "https:" : "http:";
-				var root = 'https://alnnibitpo.cloudimg.io/v7';
-
-				// Check if there is query string
-				var hasQueryString = url.indexOf('?') !== -1;
-				var result = root + '/' + url + (hasQueryString ? '&' : '?') + 'func=bound';
-
-				var isDevMode = window.location.pathname.indexOf('&devMode=true') !== -1;
-				if (isDevMode) {
-					result += '&ci_info=1';
-				}
-
-				if (options.size && options.aspect) {
-					if (this.ENUMS.SIZES.VALID_SIZES.indexOf(options.size) < 0) {
-						var sizes = this.ENUMS.SIZES.VALID_SIZES.join(', ');
-						console.warn('Inavlid size. Availible options are ' + sizes + '. Returning original url');
-						return url;
-					}
-					if (this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.indexOf(options.aspect) < 0) {
-						var ratios = this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.join(', ');
-						console.warn('Inavlid aspect ratio. Availible options are ' + ratios + '. Returning original url');
-						return url;
-					}
-					//math.round
-					options.width = this.ENUMS.SIZES[options.size];
-					options.height = options.width * this.ENUMS.ASPECT_RATIOS[options.aspect];
-				}
-				// check for missing size or aspect
-				if (options.width && !options.height) {
-					var width = Math.floor(options.width * ratio);
-					result += '&width=' + width;
-				}
-				else if (!options.width && options.height) {
-					var height = Math.floor(options.height * ratio);
-					result += '&height=' + height;
-				}
-				else if (options.width && options.height) {
-					var width = Math.floor(options.width * ratio);
-					var height = Math.floor(options.height * ratio);
-					result += '&width=' + width + '&height=' + height;
-				} else {
-					result = url;
-				}
-				options.imageProcess = 'resize';
-				this._handleElement(url, result, options, element, callback);
-
-				return result;
-			}
-		}
-
-		, cropImage: function (url, options, element, callback) {
-			if (!url) return null;
-			// return unsupported file types
-			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg)(?!.)/gi.test(url))) {
-				var filetype = (/.{0,4}(?!.)/g.exec(url) || ['Selected'])[0];
-				console.warn(filetype + ' files are not supported by cropImage. Returning original URL: ' + url);
-				return url;
-			}
-
-			/*if (imageTools.isProdImageServer(url)) {
-                url = url.replace(/^https:\/\//i, 'http://');
-            }*/
 			if (!options) {
 				options = {};
+			} else if (typeof(options) != 'object') {
+				throw ('options is not an object');
 			}
-			if (typeof (options) != 'object') {
-				throw ('options not an object');
+			options.imageProcess = 'resize';
+			let result  = this._applyImageOptions(url, options);
+			this._applyImageToElement(url, result, options, element, callback);
+
+			return result;
+		}
+		, cropImage: function (url, options, element, callback) {
+			if (!options) {
+				options = {};
+			} else if (typeof(options) != 'object') {
+				throw ('options is not an object');
 			}
-			if(!options.disablePixelRation && options.disablePixelRatio) {
+			options.imageProcess = 'crop';
+			let result  = this._applyImageOptions(url, options);
+			this._applyImageToElement(url, result, options, element, callback);
+
+			return result;
+		}
+		, _applyImageOptions: function(url, options) {
+			if (!url) return null;
+			// return unsupported file types
+			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg)(?!.)/gi.test(url))) {
+				var filetype = (/.{0,4}(?!.)/g.exec(url) || ['Selected'])[0];
+				console.warn(filetype + ` files are not supported by ${options.imageProcess}Image. Returning original URL: ` + url);
+				return url;
+			}
+
+
+			if (!options.disablePixelRation && options.disablePixelRatio) {
 				options.disablePixelRation = options.disablePixelRatio;
 			}
-			if(!options.disablePixelRatio && options.disablePixelRation) {
+			if (!options.disablePixelRatio && options.disablePixelRation) {
 				options.disablePixelRatio = options.disablePixelRation;
 			}
 			if (options.size && options.aspect) {
 				if (this.ENUMS.SIZES.VALID_SIZES.indexOf(options.size) < 0) {
 					var sizes = this.ENUMS.SIZES.VALID_SIZES.join(', ');
-					console.warn('Inavlid size. Availible options are ' + sizes + '. Returning original url');
+					console.warn('Invalid size. Available options are ' + sizes + '. Returning original url');
 					return url;
 				}
 				if (this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.indexOf(options.aspect) < 0) {
 					var ratios = this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.join(', ');
-					console.warn('Inavlid aspect ratio. Availible options are ' + ratios + '. Returning original url');
+					console.warn('Invalid aspect ratio. Available options are ' + ratios + '. Returning original url');
 					return url;
 				}
 
 				options.width = this.ENUMS.SIZES[options.size];
 				options.height = options.width * this.ENUMS.ASPECT_RATIOS[options.aspect];
 			}
-			if (!options.width && !options.height) {
-				options = { width: 'full', height: 'full' };
-			}
-			if (options.width == 'full') {
-				options.width = window.innerWidth;
-			}
-			if (options.height == 'full') {
-				options.height = window.innerHeight;
-			}
-			if (!options.width || !options.height) {
-				console.warn('cropImage doenst have width or height please fix. returning original url');
-				return url + '?h=' + options.height + '&w=' + options.width;
-			}
-
-			var ratio = window.devicePixelRatio;
-			if (options && options.disablePixelRatio) {
-				ratio = options.disablePixelRatio;
-			}
-
-			//var protocol = window.location.protocol == "https:" ? "https:" : "http:";
 
 			var root = 'https://alnnibitpo.cloudimg.io/v7';
 
 			var hasQueryString = url.indexOf('?') !== -1;
-			var result = root + '/' + url + (hasQueryString ? '&' : '?')  + 'func=crop';
+			let imageProcess = options.imageProcess == 'crop' ? 'crop': 'bound';
+			var result = root + '/' + url + (hasQueryString ? '&' : '?')  + `func=${imageProcess}`;
 
 			var isDevMode = window.location.pathname.indexOf('&devMode=true') !== -1;
 			if (isDevMode) {
 				result += '&ci_info=1';
 			}
 
-			var width = Math.floor(options.width * ratio);
-			var height = Math.floor(options.height * ratio);
+			var ratio = window.devicePixelRatio;
+			if (options && options.disablePixelRatio) {
+				ratio = 1;
+			}
+			// Don't pass any value under 1
+			if (ratio < 1) {
+				ratio = 1;
+			}
 
-			result += '&width=' + width + '&height=' + height;
+			if (options.width == 'full') options.width = window.innerWidth;
+			if (options.height == 'full') options.height = window.innerHeight;
 
-			options.imageProcess = 'crop';
-			this._handleElement(url, result, options, element, callback);
+			// check for missing size or aspect
+			if (!options.width && !options.height) {
+				var width = Math.floor(window.innerWidth * ratio);
+				var height = Math.floor(window.innerHeight * ratio);
+				result += '&width=' + width + '&height=' + height;
+			} else if (options.width && !options.height) {
+				var width = Math.floor(options.width * ratio);
+				result += '&width=' + width;
+			} else if (!options.width && options.height) {
+				var height = Math.floor(options.height * ratio);
+				result += '&height=' + height;
+			} else if (options.width && options.height) {
+				var width = Math.floor(options.width * ratio);
+				var height = Math.floor(options.height * ratio);
+
+				result += '&width=' + width + '&height=' + height;
+			} else {
+				result = url;
+			}
 
 			return result;
-		},
-		_handleElement: function (originalSrc, resultSrc, options, element, callback) {
+		}
+		, _applyImageToElement: function (originalSrc, resultSrc, options, element, callback) {
 			if (!element || !resultSrc) return;
 			var self  = this;
 			var localPath = this._getImageCacheLocalPath(resultSrc);

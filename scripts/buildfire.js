@@ -2508,8 +2508,8 @@ var buildfire = {
 				throw ('options is not an object');
 			}
 			options.imageProcess = 'resize';
-			let result  = this._applyImageOptions(url, options);
-			this._applyImageToElement(url, result, options, element, callback);
+			let cdnUrl  = this._applyImageOptions(url, options);
+			this._applyImageToElement(url, cdnUrl, options, element, callback);
 
 			return result;
 		}
@@ -2520,18 +2520,18 @@ var buildfire = {
 				throw ('options is not an object');
 			}
 			options.imageProcess = 'crop';
-			let result  = this._applyImageOptions(url, options);
-			this._applyImageToElement(url, result, options, element, callback);
+			let cdnUrl  = this._applyImageOptions(url, options);
+			this._applyImageToElement(url, cdnUrl, options, element, callback);
 
 			return result;
 		}
-		, _applyImageOptions: function(url, options) {
-			if (!url) return null;
+		, _applyImageOptions: function(originalUrl, options) {
+			if (!originalUrl) return null;
 			// return unsupported file types
-			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg)(?!.)/gi.test(url))) {
-				var filetype = (/.{0,4}(?!.)/g.exec(url) || ['Selected'])[0];
-				console.warn(filetype + ` files are not supported by ${options.imageProcess}Image. Returning original URL: ` + url);
-				return url;
+			if (/\..{3,4}(?!.)/g.test(originalUrl) && !(/.(png|jpg|jpeg)(?!.)/gi.test(originalUrl))) {
+				var filetype = (/.{0,4}(?!.)/g.exec(originalUrl) || ['Selected'])[0];
+				console.warn(filetype + ` files are not supported by ${options.imageProcess}Image. Returning original URL: ` + originalUrl);
+				return originalUrl;
 			}
 
 
@@ -2541,16 +2541,17 @@ var buildfire = {
 			if (!options.disablePixelRatio && options.disablePixelRation) {
 				options.disablePixelRatio = options.disablePixelRation;
 			}
+
 			if (options.size && options.aspect) {
 				if (this.ENUMS.SIZES.VALID_SIZES.indexOf(options.size) < 0) {
 					var sizes = this.ENUMS.SIZES.VALID_SIZES.join(', ');
 					console.warn('Invalid size. Available options are ' + sizes + '. Returning original url');
-					return url;
+					return originalUrl;
 				}
 				if (this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.indexOf(options.aspect) < 0) {
 					var ratios = this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.join(', ');
 					console.warn('Invalid aspect ratio. Available options are ' + ratios + '. Returning original url');
-					return url;
+					return originalUrl;
 				}
 
 				options.width = this.ENUMS.SIZES[options.size];
@@ -2559,9 +2560,9 @@ var buildfire = {
 
 			var root = 'https://alnnibitpo.cloudimg.io/v7';
 
-			var hasQueryString = url.indexOf('?') !== -1;
+			var hasQueryString = originalUrl.indexOf('?') !== -1;
 			let imageProcess = options.imageProcess == 'crop' ? 'crop': 'bound';
-			var result = root + '/' + url + (hasQueryString ? '&' : '?')  + `func=${imageProcess}`;
+			var result = root + '/' + originalUrl + (hasQueryString ? '&' : '?')  + `func=${imageProcess}`;
 
 			var isDevMode = window.location.pathname.indexOf('&devMode=true') !== -1;
 			if (isDevMode) {
@@ -2597,38 +2598,24 @@ var buildfire = {
 
 				result += '&width=' + width + '&height=' + height;
 			} else {
-				result = url;
+				result = originalUrl;
 			}
 
 			return result;
 		}
-		, _applyImageToElement: function (originalSrc, resultSrc, options, element, callback) {
-			if (!element || !resultSrc) return;
+		, _applyImageToElement: function (originalSrc, cdnUrl, options, element, callback) {
+			if (!element || !cdnUrl) return;
 			var self  = this;
-			var localPath = this._getImageCacheLocalPath(resultSrc);
+			var localPath = this._getImageCacheLocalPath(cdnUrl);
 
 			if (element.tagName === 'IMG') {
-				element.style.setProperty('opacity', '0', 'important');
-				element.src = localPath;
-
-				element.onload = function () {
-					element.style.removeProperty('opacity');
-					if (callback) callback(localPath);
-				};
-
-				element.onerror = function () {
-					self._imageErrorFallback(originalSrc, resultSrc, options, element, callback);
-					// var p = new Packet(null, 'imageCache.download', resultSrc);
-					// buildfire._sendPacket(p, function () {
-					// 	if (callback) callback(localPath); (question)?
-					// });
-				};
+				this._handleImageElement(originalSrc, cdnUrl, localPath, options, element, callback);
 			} else {
-				this._handleBgImage(originalSrc, resultSrc, localPath, options, element, callback);
+				this._handleBgImage(originalSrc, cdnUrl, localPath, options, element, callback);
 			}
 		},
-		
-		_imageErrorFallback: function (originalSrc, resultSrc, options, element, callback) {
+
+		_imageErrorFallback: function (originalSrc, cdnUrl, options, element, callback) {
 			var path = null;
 			if (buildfire.isWeb()) {
 				path = "/plugins/myPlugin/logo11w.png";
@@ -2652,16 +2639,16 @@ var buildfire = {
 							if (callback) callback(result);
 						};
 						element.onerror = function () {
-							element.src = resultSrc;
-							if (callback) callback(resultSrc);
+							element.src = cdnUrl;
+							if (callback) callback(cdnUrl);
 						};
 					} else {
 						callback(null, result);
 					}
 				} else {
 					if (element.tagName === 'IMG') {
-						element.src = resultSrc;
-						if (callback) callback(resultSrc);
+						element.src = cdnUrl;
+						if (callback) callback(cdnUrl);
 					} else {
 						callback(err, null);
 					}
@@ -2669,7 +2656,39 @@ var buildfire = {
 				}
 			}
 		},
-		_handleBgImage: function (originalSrc, resultSrc, localPath, options, element, callback) {
+		_handleImageElement: function (originalSrc, cdnUrl, localPath, options, element, callback) {
+			element.style.setProperty('opacity', '0', 'important');
+			element.src = localPath;
+
+			element.onload = function () {
+				element.style.removeProperty('opacity');
+				if (callback) callback(localPath);
+			};
+
+			element.onerror = function () {
+				self._imageErrorFallback(originalSrc, cdnUrl, options, element, callback);
+				// var p = new Packet(null, 'imageTools.download', cdnUrl);
+				// buildfire._sendPacket(p, function () {
+				// 	if (callback) callback(localPath); (question)?
+				// });
+			};
+		},
+
+		_handleBgImage_AppVersion: function (originalSrc, cdnUrl, localPath, options, element, callback) {
+			// move local cropping logic to app
+			var p = new Packet(null, 'imageCache.getResizedImageUrl', {});
+			buildfire._sendPacket(p, function (error, resizedUrl) {
+				if (error) {
+					img.src = resizedUrl;
+				}
+				window.requestAnimationFrame(function () {
+					if (callback) callback(localPath);
+				});
+			});
+		},
+
+
+		_handleBgImage: function (originalSrc, cdnUrl, localPath, options, element, callback) {
 			var self = this;
 			applyStyle(element, localPath);
 
@@ -2685,17 +2704,17 @@ var buildfire = {
 				// let callback = function() {
 
 				// }
-				self._imageErrorFallback(originalSrc, resultSrc, options, element, (err, result) => {
+				self._imageErrorFallback(originalSrc, cdnUrl, options, element, (err, result) => {
 					if (err) {
-						return applyStyle(element, resultSrc);
+						return applyStyle(element, cdnUrl);
 					}
 					applyStyle(element, result);
 					document.getElementById('lala').src = result;
 				});
-				var p = new Packet(null, 'imageCache.download', resultSrc);
+				var p = new Packet(null, 'imageCache.download', cdnUrl);
 				buildfire._sendPacket(p, function (error, localPath) {
 					if (error) {
-						if (callback) callback(resultSrc);
+						if (callback) callback(cdnUrl);
 					}
 					window.requestAnimationFrame(function () {
 						if (callback) callback(localPath);
@@ -3700,7 +3719,7 @@ var buildfire = {
 											}
 										});
 									}
-									// add the class (bf-wysiwyg-top) to all first level elements (at the root) of the WYSIWYG body element 
+									// add the class (bf-wysiwyg-top) to all first level elements (at the root) of the WYSIWYG body element
 									editor.dom.doc.body.querySelectorAll('body > *').forEach(function(ele) { ele.classList.add("bf-wysiwyg-top") });
 								});
 								editor.ui.registry.addMenuItem('bf_clearContent', {

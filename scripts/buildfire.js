@@ -2443,6 +2443,7 @@ var buildfire = {
 					'1440': 1440,
 					'1920': 1920,
 					'2560': 2560,
+					'3840': 3840,
 					get full_width() {
 						return this.findNearest(1);
 					},
@@ -2462,7 +2463,7 @@ var buildfire = {
 						return this.findNearest(6);
 					},
 					findNearest: function (ratio) {
-						var match = null;
+						let match = null;
 						const sizes = this.VALID_SIZES.filter(size => size.indexOf('_' < -1));
 
 						for (size of sizes) {
@@ -2475,7 +2476,7 @@ var buildfire = {
 					},
 					VALID_SIZES: [
 						'xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', //standard
-						'720', '1080', '1440', '1920', '2560', //desktop
+						'720', '1080', '1440', '1920', '2560', '3840', //desktop
 						'full_width', 'half_width', 'third_width', 'quarter_width', 'fifth_width', 'sixth_width' // responsive
 					]
 				},
@@ -2496,66 +2497,68 @@ var buildfire = {
 			var p = new Packet(null, 'imageLib.showDialog', options);
 			buildfire._sendPacket(p, callback);
 		}
-		,isProdImageServer: function(url){
-			return ((url.indexOf('http://imageserver.prod.s3.amazonaws.com') == 0
-                || url.indexOf('https://imageserver.prod.s3.amazonaws.com') == 0
-                || url.indexOf('https://s3-us-west-2.amazonaws.com/imageserver.prod') == 0
+		, isProdImageServer: function(url) {
+			return ((url.indexOf('http://imageserver.prod.s3.amazonaws.com') >= 0
+				|| url.indexOf('https://imageserver.prod.s3.amazonaws.com') >= 0
+				|| url.indexOf('https://s3-us-west-2.amazonaws.com/imageserver.prod') >= 0
 			));
 		}
-		//options:{
-		// width: integer or 'full'
-		// height: integer or 'full'
-		// disablePixelRation: bool
-		// }
+		, isImageLibServer: function(url) {
+			return ((url.indexOf('http://imagelibserver.s3.amazonaws.com') >= 0
+				|| url.indexOf('https://imagelibserver.s3.amazonaws.com') >= 0
+				|| url.indexOf('https://s3-us-west-2.amazonaws.com/imagelibserver') >= 0
+			));
+		}
 		, resizeImage: function (url, options, element, callback) {
+			if (!url) return false;
+			if (!this._isValidImageUrl(url)) {
+				return url;
+			}
 			if (!options) {
 				options = {};
 			} else if (typeof(options) != 'object') {
 				throw ('options is not an object');
 			}
 			options.imageProcess = 'resize';
-			let cdnUrl  = this._applyImageOptions(url, options);
+			let cdnUrl = this._applyImageOptions(url, options);
 			this._applyImageToElement(url, cdnUrl, options, element, callback);
 
-			return result;
+			return cdnUrl;
 		}
 		, cropImage: function (url, options, element, callback) {
+			if (!url) return false;
+			if (!this._isValidImageUrl(url)) {
+				return url;
+			}
 			if (!options) {
 				options = {};
 			} else if (typeof(options) != 'object') {
 				throw ('options is not an object');
 			}
 			options.imageProcess = 'crop';
-			let cdnUrl  = this._applyImageOptions(url, options);
+			let cdnUrl = this._applyImageOptions(url, options);
 			this._applyImageToElement(url, cdnUrl, options, element, callback);
 
-			return result;
+			return cdnUrl;
+		}
+		, _isValidImageUrl: function (url) {
+			// return unsupported file types
+			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg)(?!.)/gi.test(url))) {
+				let filetype = (/.{0,4}(?!.)/g.exec(url) || ['Selected'])[0];
+				console.warn(filetype + ` files are not supported by ${options.imageProcess}Image. Returning original URL: ` + url);
+				return false;
+			}
+			return true;
 		}
 		, _applyImageOptions: function(originalUrl, options) {
-			if (!originalUrl) return null;
-			// return unsupported file types
-			if (/\..{3,4}(?!.)/g.test(originalUrl) && !(/.(png|jpg|jpeg)(?!.)/gi.test(originalUrl))) {
-				var filetype = (/.{0,4}(?!.)/g.exec(originalUrl) || ['Selected'])[0];
-				console.warn(filetype + ` files are not supported by ${options.imageProcess}Image. Returning original URL: ` + originalUrl);
-				return originalUrl;
-			}
-
-
-			if (!options.disablePixelRation && options.disablePixelRatio) {
-				options.disablePixelRation = options.disablePixelRatio;
-			}
-			if (!options.disablePixelRatio && options.disablePixelRation) {
-				options.disablePixelRatio = options.disablePixelRation;
-			}
-
 			if (options.size && options.aspect) {
 				if (this.ENUMS.SIZES.VALID_SIZES.indexOf(options.size) < 0) {
-					var sizes = this.ENUMS.SIZES.VALID_SIZES.join(', ');
+					let sizes = this.ENUMS.SIZES.VALID_SIZES.join(', ');
 					console.warn('Invalid size. Available options are ' + sizes + '. Returning original url');
 					return originalUrl;
 				}
 				if (this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.indexOf(options.aspect) < 0) {
-					var ratios = this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.join(', ');
+					let ratios = this.ENUMS.ASPECT_RATIOS.VALID_RATIOS.join(', ');
 					console.warn('Invalid aspect ratio. Available options are ' + ratios + '. Returning original url');
 					return originalUrl;
 				}
@@ -2564,19 +2567,26 @@ var buildfire = {
 				options.height = options.width * this.ENUMS.ASPECT_RATIOS[options.aspect];
 			}
 
-			var root = 'https://alnnibitpo.cloudimg.io/v7';
-
-			var hasQueryString = originalUrl.indexOf('?') !== -1;
+			let root = 'https://alnnibitpo.cloudimg.io/v7';
+		
+			let hasQueryString = originalUrl.indexOf('?') !== -1;
 			let imageProcess = options.imageProcess == 'crop' ? 'crop': 'bound';
-			var result = root + '/' + originalUrl + (hasQueryString ? '&' : '?')  + `func=${imageProcess}`;
+			let result = root + '/' + originalUrl + (hasQueryString ? '&' : '?')  + `func=${imageProcess}`;
 
-			var isDevMode = window.location.pathname.indexOf('&devMode=true') !== -1;
+			let isDevMode = window.location.pathname.indexOf('&devMode=true') !== -1;
 			if (isDevMode) {
 				result += '&ci_info=1';
 			}
 
-			var ratio = window.devicePixelRatio;
-			if (options && options.disablePixelRatio) {
+			if (!options.disablePixelRation && options.disablePixelRatio) {
+				options.disablePixelRation = options.disablePixelRatio;
+			}
+			if (!options.disablePixelRatio && options.disablePixelRation) {
+				options.disablePixelRatio = options.disablePixelRation;
+			}
+
+			let ratio = window.devicePixelRatio;
+			if (options && (options.disablePixelRatio || options.disablePixelRation)) {
 				ratio = 1;
 			}
 			// Don't pass any value under 1
@@ -2589,19 +2599,18 @@ var buildfire = {
 
 			// check for missing size or aspect
 			if (!options.width && !options.height) {
-				var width = Math.floor(window.innerWidth * ratio);
-				var height = Math.floor(window.innerHeight * ratio);
+				let width = Math.floor(window.innerWidth * ratio);
+				let height = Math.floor(window.innerHeight * ratio);
 				result += '&width=' + width + '&height=' + height;
 			} else if (options.width && !options.height) {
-				var width = Math.floor(options.width * ratio);
+				let width = Math.floor(options.width * ratio);
 				result += '&width=' + width;
 			} else if (!options.width && options.height) {
-				var height = Math.floor(options.height * ratio);
+				let height = Math.floor(options.height * ratio);
 				result += '&height=' + height;
 			} else if (options.width && options.height) {
-				var width = Math.floor(options.width * ratio);
-				var height = Math.floor(options.height * ratio);
-
+				let width = Math.floor(options.width * ratio);
+				let height = Math.floor(options.height * ratio);
 				result += '&width=' + width + '&height=' + height;
 			} else {
 				result = originalUrl;
@@ -2611,158 +2620,58 @@ var buildfire = {
 		}
 		, _applyImageToElement: function (originalSrc, cdnUrl, options, element, callback) {
 			if (!element || !cdnUrl) return;
-			var self  = this;
-			var localPath = this._getImageCacheLocalPath(cdnUrl);
-
+			if (!(this.isImageLibServer(originalSrc) || this.isProdImageServer(originalSrc)) || buildfire.isWeb()) {
+				element.src = cdnUrl;
+				if (callback) callback(null, cdnUrl);
+				return;
+			}
 			if (element.tagName === 'IMG') {
-				this._handleImageElement(originalSrc, cdnUrl, localPath, options, element, callback);
+				this._handleImageElement(originalSrc, cdnUrl, options, element, callback);
 			} else {
-				this._handleBgImage(originalSrc, cdnUrl, localPath, options, element, callback);
+				this._handleBgImage(originalSrc, cdnUrl, options, element, callback);
 			}
-		},
-
-		_imageErrorFallback: function (originalSrc, cdnUrl, options, element, callback) {
-			var path = null;
-			if (buildfire.isWeb()) {
-				path = "/plugins/myPlugin/logo11w.png";
-			} else {
-				path = this._getImageLibLocalPath(originalSrc);
-			}
-
-			if (options.imageProcess === 'crop') {
-				buildfire.imageLib.local.cropImage(path, options, imageProcessCallback);
-			} else if (options.imageProcess === 'resize') {
-				buildfire.imageLib.local.resizeImage(path, options, imageProcessCallback);
-			}
-			function imageProcessCallback(err, result) {
-				if (!err) {
-					if (element.tagName === 'IMG') {
-						element.style.setProperty('opacity', '0', 'important');
-						element.src = result;
-
-						element.onload = function () {
-							element.style.removeProperty('opacity');
-							if (callback) callback(result);
-						};
-						element.onerror = function () {
-							element.src = cdnUrl;
-							if (callback) callback(cdnUrl);
-						};
-					} else {
-						callback(null, result);
-					}
-				} else {
-					if (element.tagName === 'IMG') {
-						element.src = cdnUrl;
-						if (callback) callback(cdnUrl);
-					} else {
-						callback(err, null);
-					}
-					console.log('Error occurred while cropping image: ', err);
-				}
-			}
-		},
-		_handleImageElement: function (originalSrc, cdnUrl, localPath, options, element, callback) {
-			element.style.setProperty('opacity', '0', 'important');
-			element.src = localPath;
-
-			element.onload = function () {
-				element.style.removeProperty('opacity');
-				if (callback) callback(localPath);
-			};
-
-			element.onerror = function () {
-				self._imageErrorFallback(originalSrc, cdnUrl, options, element, callback);
-				// var p = new Packet(null, 'imageTools.download', cdnUrl);
-				// buildfire._sendPacket(p, function () {
-				// 	if (callback) callback(localPath); (question)?
-				// });
-			};
-		},
-
-		_handleBgImage_AppVersion: function (originalSrc, cdnUrl, localPath, options, element, callback) {
-			// move local cropping logic to app
-			var p = new Packet(null, 'imageCache.getResizedImageUrl', {});
-			buildfire._sendPacket(p, function (error, resizedUrl) {
+		}
+		, _handleImageElement: function (originalSrc, cdnUrl, options, element, callback) {
+			options.originalSrc = originalSrc;
+			options.cdnUrl = cdnUrl;
+			let imageCacheAction = `get${options.imageProcess == 'crop' ? 'Cropped': 'Resized'}ImageUrl`;
+			var p = new Packet(null, `imageCache.${imageCacheAction}`, options);
+			buildfire._sendPacket(p, function (error, result) {
 				if (error) {
-					img.src = resizedUrl;
+					element.src = cdnUrl;
+					if (callback) callback(null, cdnUrl);
+					return;
 				}
+				element.src = result;
+				if (callback) callback(null, result);
+			});
+		}
+		, _handleBgImage: function (originalSrc, cdnUrl, options, element, callback) {
+			options.originalSrc = originalSrc;
+			options.cdnUrl = cdnUrl;
+			let imageCacheAction = `get${options.imageProcess == 'crop' ? 'Cropped': 'Resized'}ImageUrl`;
+			var p = new Packet(null, `imageCache.${imageCacheAction}`, options);
+			buildfire._sendPacket(p, function (error, result) {
+				if (error) {
+					applyStyle(element, cdnUrl);
+					if (callback) callback(null, cdnUrl);
+					return;
+				}
+				applyStyle(element, result);
 				window.requestAnimationFrame(function () {
-					if (callback) callback(localPath);
+					if (callback) callback(null, result);
 				});
 			});
-		},
-
-
-		_handleBgImage: function (originalSrc, cdnUrl, localPath, options, element, callback) {
-			var self = this;
-			applyStyle(element, localPath);
-
-			var img = new Image();
-			img.src = localPath;
-
-			img.onload = function () {
-				if (callback) callback(localPath);
-			};
-
-			img.onerror = function () {
-				// let originalCallback = callback;
-				// let callback = function() {
-
-				// }
-				self._imageErrorFallback(originalSrc, cdnUrl, options, element, (err, result) => {
-					if (err) {
-						return applyStyle(element, cdnUrl);
-					}
-					applyStyle(element, result);
-					document.getElementById('lala').src = result;
-				});
-				var p = new Packet(null, 'imageCache.download', cdnUrl);
-				buildfire._sendPacket(p, function (error, localPath) {
-					if (error) {
-						if (callback) callback(cdnUrl);
-					}
-					window.requestAnimationFrame(function () {
-						if (callback) callback(localPath);
-					});
-				});
-			};
 
 			function applyStyle(ele, source) {
 				if (!source) {
 					return ele.style.removeProperty('background-image');
 				}
-				var backgroundCss = 'url("' + source + '")';
+				let backgroundCss = 'url("' + source + '")';
 				ele.style.setProperty('background-image', backgroundCss, 'important');
 			}
-		},
-		_getImageCacheLocalPath: function (string) {
-			if (buildfire.isWeb()) {
-				return "/plugins/myPlugin/logo11w__c.png";
-			}
-
-			string = string.replace(/(http|https):\/\/\S{0,8}.cloudimg.io\//g, '');
-			var extension = string.match(/(png|jpg|jpeg)/g)[0] || '';
-			extension = extension ? '.' + extension : '';
-
-			var hash = 0;
-			if (!string.length) return hash;
-
-			for (var i = 0; i < string.length; i++) {
-				var char = string.charCodeAt(i);
-				hash = (hash << 5) - hash + char;
-				hash |= 0; // Convert to 32bit integer
-			}
-
-			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageCache/images') + '/' + hash + extension;
-		},
-		_getImageLibLocalPath: function (string) {
-			let lastIndex = string.lastIndexOf('/');
-			let imageName = string.slice(lastIndex + 1);
-			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageLib') + '/' + imageName;
-			// return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageLib') + '/' + 'zombiesbrand.png';
-		},
-		getCompression: function (c) {
+		}
+		, getCompression: function (c) {
 			var result = 'n/';
 			if (c) {
 				var isValid = typeof c === 'number' && c >= 1 && c <= 100;
@@ -2798,114 +2707,24 @@ var buildfire = {
 					return null;
 			}
 			, resizeImage: function (url, options, callback) {
-
-				var ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
-				if (!options)
-					options = {width: window.innerWidth};
-				else if (typeof(options) != 'object')
-					throw ('options not an object');
-
-				if (options.width == 'full') options.width = window.innerWidth;
-				if (options.height == 'full') options.height = window.innerHeight;
-
-				var localURL = buildfire.imageLib.local.toLocalPath(url);
-				if (url) {
-					var img = new Image();
-					img.src = url;
-					img.onload = function () {
-
-						let resizeWidth, resizeHeight;
-						let optionsRatio = options.width / options.height;
-						let imageRatio = img.width / img.height;
-						if (imageRatio > optionsRatio) {
-							resizeWidth = options.width;
-							resizeHeight = options.width / imageRatio;
-						} else {
-							resizeHeight = options.height;
-							resizeWidth = options.height * imageRatio;
-						}
-
-						var canvas = document.createElement('canvas');
-						var ctx = canvas.getContext('2d');
-
-						let finalWidth = resizeWidth * ratio;
-						let finalHeight = resizeHeight * ratio;
-						canvas.width = finalWidth;
-						canvas.height = finalHeight;
-
-						ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
-
-						callback(null, canvas.toDataURL());
-					};
-					img.onerror = function () {
-						callback('error in loading canvas', null);
-					};
-				}
-				else
-					callback(null, buildfire.imageLib.resizeImage(url, options));
-
-
+				options.imageProcess = 'resize';
+				this._handleLocalImageProcessing(url, options, callback)
 			}
 			, cropImage: function (url, options, callback) {
-
-				//If we are online, use the normal crop image.
-				// if (window.navigator.onLine) {
-				// 	callback(null, buildfire.imageLib.cropImage(url, options));
-				// 	return;
-				// }
-
-				var ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
-
-				if (!options)
-					options = {width: window.innerWidth};
-				else if (typeof(options) != 'object')
-					throw ('options not an object');
-
-				if (options.width == 'full') options.width = window.innerWidth;
-				if (options.height == 'full') options.height = window.innerHeight;
-
-				var localURL = buildfire.imageLib.local.toLocalPath(url);
-				if (url) {
-					var img = new Image();
-					img.src = url;
-					img.onload = function () {
-						var canvas = document.createElement('canvas');
-						var ctx = canvas.getContext('2d');
-						var cuttingDimension = {
-							width: 0,
-							height: 0
-						};
-						var cuttingOffset = {
-							x: 0,
-							y: 0
-						};
-						let optionsRatio = options.width / options.height;
-						let imageRatio = img.width / img.height;
-						if (imageRatio > optionsRatio) {
-							cuttingDimension.height = img.height;
-							cuttingDimension.width = img.height * optionsRatio;
-							cuttingOffset.x = (img.width - cuttingDimension.width) / 2;
-							cuttingOffset.y = 0;
-						} else {
-							cuttingDimension.width = img.width;
-							cuttingDimension.height = img.width / optionsRatio;
-							cuttingOffset.y = (img.height - cuttingDimension.height) / 2;
-							cuttingOffset.x = 0;
-						}
-
-						let providedWidth = options.width * ratio;
-						let providedHeight = options.height * ratio;
-						canvas.width = providedWidth;
-						canvas.height = providedHeight;
-						ctx.drawImage(img, cuttingOffset.x, cuttingOffset.y, cuttingDimension.width, cuttingDimension.height, 0, 0, providedWidth , providedHeight);
-						callback(null, canvas.toDataURL());
-					};
-					img.onerror = function () {
-						callback('error in loading canvas', null);
-					};
-				} else {
-					callback(null, buildfire.imageLib.cropImage(url, options));
-				}
+				options.imageProcess = 'crop';
+				this._handleLocalImageProcessing(url, options, callback)
+			}
+			, _handleLocalImageProcessing: function() {
+				options.originalSrc = url;
+				let imageCacheAction = `get${options.imageProcess == 'crop' ? 'Cropped': 'Resized'}ImageUrl`;
+				var p = new Packet(null, `imageCache.${imageCacheAction}`, options);
+				buildfire._sendPacket(p, function (error, result) {
+					if (error) {
+						if (callback) callback(null, url);
+						return;
+					}
+					if (callback) callback(null, result);
+				});
 			}
 		}
 	}

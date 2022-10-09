@@ -2586,7 +2586,7 @@ var buildfire = {
 			}
 
 			let ratio = window.devicePixelRatio;
-			if (options && (options.disablePixelRatio || options.disablePixelRation)) {
+			if (options && options.disablePixelRatio) {
 				ratio = 1;
 			}
 			// Don't pass any value under 1
@@ -2625,13 +2625,79 @@ var buildfire = {
 				if (callback) callback(null, cdnUrl);
 				return;
 			}
+			let localPath = this._getImageCacheLocalPath(cdnUrl);
 			if (element.tagName === 'IMG') {
-				this._handleImageElement(originalSrc, cdnUrl, options, element, callback);
+				if (options.inSdkLevel) {
+					this._handleImageElement(originalSrc, cdnUrl, localPath, options, element, callback);
+				} else {
+					this._handleImage_AppVersion(originalSrc, cdnUrl, options, element, callback);
+				}
 			} else {
-				this._handleBgImage(originalSrc, cdnUrl, options, element, callback);
+				if (options.inSdkLevel) {
+					this._handleBgImage(originalSrc, cdnUrl, localPath, options, element, callback);
+				} else {
+					this._handleBgImage_AppVersion(originalSrc, cdnUrl, options, element, callback);
+				}
+			}
+		},
+		_handleImageElement: function (originalSrc, cdnUrl, localPath, options, element, callback) {
+			element.style.setProperty('opacity', '0', 'important');
+			element.src = localPath;
+			let self  = this;
+
+			element.onload = function () {
+				element.style.removeProperty('opacity');
+				if (callback) callback(null, localPath);
+			};
+
+			element.onerror = function () {
+				self._imageErrorFallback(originalSrc, cdnUrl, options, element, callback);
+			};
+		},
+		_imageErrorFallback: function (originalSrc, cdnUrl, options, element, callback) {
+			let self  = this;
+			let localPath = this._getImageLibLocalPath(originalSrc);
+			if (options.imageProcess === 'crop') {
+				options.cdnUrl = cdnUrl;
+				buildfire.imageLib.local.cropImage(localPath, options, imageProcessCallback);
+			} else if (options.imageProcess === 'resize') {
+				options.cdnUrl = cdnUrl;
+				buildfire.imageLib.local.resizeImage(localPath, options, imageProcessCallback);
+			}
+			function imageProcessCallback(err, result) {
+				if (!err) {
+					if (element.tagName === 'IMG') {
+						element.style.setProperty('opacity', '0', 'important');
+						element.src = result;
+
+						element.onload = function () {
+							element.style.removeProperty('opacity');
+							if (callback) callback(null, result);
+						};
+						element.onerror = function () {
+							element.src = cdnUrl;
+							if (callback) callback(null, cdnUrl);
+						};
+					} else {
+						if (callback) callback(null, result);
+					}
+				} else {
+					if (element.tagName === 'IMG') {
+						element.src = cdnUrl;
+						if (callback) callback(null, cdnUrl);
+					} else {
+						if (callback) callback(null, cdnUrl);
+					}
+					console.log('Error occurred while cropping image: ', err);
+				}
 			}
 		}
-		, _handleImageElement: function (originalSrc, cdnUrl, options, element, callback) {
+		, _saveCdnImage: function(cdnUrl) {
+			var p = new Packet(null, 'imageCache.download', cdnUrl);
+			buildfire._sendPacket(p, function () {
+			});
+		}
+		, _handleImage_AppVersion: function (originalSrc, cdnUrl, options, element, callback) {
 			options.originalSrc = originalSrc;
 			options.cdnUrl = cdnUrl;
 			let imageCacheAction = `get${options.imageProcess == 'crop' ? 'Cropped': 'Resized'}ImageUrl`;
@@ -2646,7 +2712,7 @@ var buildfire = {
 				if (callback) callback(null, result);
 			});
 		}
-		, _handleBgImage: function (originalSrc, cdnUrl, options, element, callback) {
+		, _handleBgImage_AppVersion: function (originalSrc, cdnUrl, options, element, callback) {
 			options.originalSrc = originalSrc;
 			options.cdnUrl = cdnUrl;
 			let imageCacheAction = `get${options.imageProcess == 'crop' ? 'Cropped': 'Resized'}ImageUrl`;
@@ -2670,6 +2736,70 @@ var buildfire = {
 				let backgroundCss = 'url("' + source + '")';
 				ele.style.setProperty('background-image', backgroundCss, 'important');
 			}
+		}
+		, _handleBgImage: function (originalSrc, cdnUrl, localPath, options, element, callback) {
+			let self = this;
+			applyStyle(element, localPath);
+
+			let img = new Image();
+			img.src = localPath;
+
+			img.onload = function () {
+				if (callback) callback(null, localPath);
+			};
+
+			img.onerror = function () {
+				self._imageErrorFallback(originalSrc, cdnUrl, options, element, (err, result) => {
+					if (err) {
+						applyStyle(element, cdnUrl);
+						if (callback) callback(null, cdnUrl);
+						return;
+					}
+					applyStyle(element, result);
+					window.requestAnimationFrame(function () {
+						if (callback) callback(null, result);
+					});
+				});
+			};
+
+			function applyStyle(ele, source) {
+				if (!source) {
+					return ele.style.removeProperty('background-image');
+				}
+				let backgroundCss = 'url("' + source + '")';
+				ele.style.setProperty('background-image', backgroundCss, 'important');
+			}
+		},
+		_getImageCacheLocalPath: function (url) {
+			url = url.replace(/(http|https):\/\/\S{0,8}.cloudimg.io\//g, '');
+			let extension = url.match(/(png|jpg|jpeg)/g)[0] || '';
+			extension = extension ? '.' + extension : '';
+			let hash = this._getHash(url);
+
+			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageCache/images') + '/' + hash + extension;
+		},
+		_getImageLibLocalPath: function (url) {
+			let imageName = new URL(url).pathname.split("/").slice(-1).pop();
+			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageLib') + '/' + imageName;
+		},
+		_getHash: function(url) {
+			let hash = 0;
+			if (!url.length) return hash;
+	
+			for (let i = 0; i < url.length; i++) {
+				let char = url.charCodeAt(i);
+				hash = (hash << 5) - hash + char;
+				hash |= 0; // Convert to 32bit integer
+			}
+			return hash;
+		},
+		clearImageCache: function () {
+			if (buildfire.isWeb()) {
+				console.error("Can't clear cache on web");
+				return;
+			}
+			var p = new Packet(null, 'imageCache.removeImages', {});
+			buildfire._sendPacket(p, () => {});
 		}
 		, getCompression: function (c) {
 			var result = 'n/';
@@ -2707,24 +2837,107 @@ var buildfire = {
 					return null;
 			}
 			, resizeImage: function (url, options, callback) {
-				options.imageProcess = 'resize';
-				this._handleLocalImageProcessing(url, options, callback)
+				if (!options)
+					options = {width: window.innerWidth};
+				else if (typeof(options) != 'object')
+					throw ('options not an object');
+
+				if (options.width == 'full') options.width = window.innerWidth;
+				if (options.height == 'full') options.height = window.innerHeight;
+
+				let img = new Image();
+				img.src = url;
+				img.onload = function () {
+					let resizeWidth, resizeHeight;
+					let optionsRatio = options.width / options.height;
+					let imageRatio = img.width / img.height;
+					if (imageRatio > optionsRatio) {
+						resizeWidth = options.width;
+						resizeHeight = options.width / imageRatio;
+					} else {
+						resizeHeight = options.height;
+						resizeWidth = options.height * imageRatio;
+					}
+
+					let canvas = document.createElement('canvas');
+					let ctx = canvas.getContext('2d');
+					let ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
+					let finalWidth = resizeWidth * ratio;
+					let finalHeight = resizeHeight * ratio;
+					canvas.width = finalWidth;
+					canvas.height = finalHeight;
+					ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
+
+					callback(null, canvas.toDataURL());
+				};
+				img.onerror = function () {
+					callback('error in loading canvas', null);
+				};
 			}
 			, cropImage: function (url, options, callback) {
-				options.imageProcess = 'crop';
-				this._handleLocalImageProcessing(url, options, callback)
-			}
-			, _handleLocalImageProcessing: function() {
-				options.originalSrc = url;
-				let imageCacheAction = `get${options.imageProcess == 'crop' ? 'Cropped': 'Resized'}ImageUrl`;
-				var p = new Packet(null, `imageCache.${imageCacheAction}`, options);
-				buildfire._sendPacket(p, function (error, result) {
-					if (error) {
-						if (callback) callback(null, url);
-						return;
+				if (!options)
+					options = {width: window.innerWidth};
+				else if (typeof(options) != 'object')
+					throw ('options not an object');
+
+				if (options.width == 'full') options.width = window.innerWidth;
+				if (options.height == 'full') options.height = window.innerHeight;
+
+				let self = this;
+				let img = new Image();
+				img.src = url;
+				img.onload = function () {
+					let cuttingDimension = {
+						width: 0,
+						height: 0
+					};
+					let cuttingOffset = {
+						x: 0,
+						y: 0
+					};
+					let optionsRatio = options.width / options.height;
+					let imageRatio = img.width / img.height;
+					if (imageRatio > optionsRatio) {
+						cuttingDimension.height = img.height;
+						cuttingDimension.width = img.height * optionsRatio;
+						cuttingOffset.x = (img.width - cuttingDimension.width) / 2;
+						cuttingOffset.y = 0;
+					} else {
+						cuttingDimension.width = img.width;
+						cuttingDimension.height = img.width / optionsRatio;
+						cuttingOffset.y = (img.height - cuttingDimension.height) / 2;
+						cuttingOffset.x = 0;
 					}
-					if (callback) callback(null, result);
-				});
+
+					let canvas = document.createElement('canvas');
+					let ctx = canvas.getContext('2d');
+					let ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
+					let providedWidth = options.width * ratio;
+					let providedHeight = options.height * ratio;
+					canvas.width = providedWidth;
+					canvas.height = providedHeight;
+					ctx.drawImage(img, cuttingOffset.x, cuttingOffset.y, cuttingDimension.width, cuttingDimension.height, 0, 0, providedWidth , providedHeight);
+					if (options.cdnUrl) {
+						self._saveCanvasLocally(canvas, options.cdnUrl);
+					}
+					callback(null, canvas.toDataURL());
+				};
+				img.onerror = function () {
+					callback('error in loading canvas', null);
+				};
+			}
+			, _saveCanvasLocally: function(canvas, cdnUrl) {
+				canvas.toBlob((res) => {
+					let hash = buildfire.imageLib._getHash(cdnUrl);
+					let cacheOptions = {
+						path: '/imageCache/images',
+						fileName: hash + '.png',
+						blob: res
+					}
+					var p = new Packet(null, 'fileManager.writeBlobToFile', cacheOptions);
+					buildfire._sendPacket(p, function () {
+					});
+				}, 'image/webp');
 			}
 		}
 	}

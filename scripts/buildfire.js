@@ -2511,7 +2511,7 @@ var buildfire = {
 		}
 		, resizeImage: function (url, options, element, callback) {
 			if (!url) return false;
-			if (!this._isValidImageUrl(url)) {
+			if (!this._isValidImageUrl(url, options)) {
 				return url;
 			}
 			if (!options) {
@@ -2527,7 +2527,7 @@ var buildfire = {
 		}
 		, cropImage: function (url, options, element, callback) {
 			if (!url) return false;
-			if (!this._isValidImageUrl(url)) {
+			if (!this._isValidImageUrl(url, options)) {
 				return url;
 			}
 			if (!options) {
@@ -2541,9 +2541,9 @@ var buildfire = {
 
 			return cdnUrl;
 		}
-		, _isValidImageUrl: function (url) {
+		, _isValidImageUrl: function (url, options) {
 			// return unsupported file types
-			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg)(?!.)/gi.test(url))) {
+			if (/\..{3,4}(?!.)/g.test(url) && !(/.(png|jpg|jpeg|webp|svg)(?!.)/gi.test(url))) {
 				let filetype = (/.{0,4}(?!.)/g.exec(url) || ['Selected'])[0];
 				console.warn(filetype + ` files are not supported by ${options.imageProcess}Image. Returning original URL: ` + url);
 				return false;
@@ -2574,7 +2574,7 @@ var buildfire = {
 			let result = root + '/' + originalUrl + (hasQueryString ? '&' : '?')  + `func=${imageProcess}`;
 
 			let isDevMode = window.location.pathname.indexOf('&devMode=true') !== -1;
-			if (isDevMode) {
+			if (true) {
 				result += '&ci_info=1';
 			}
 
@@ -2627,13 +2627,13 @@ var buildfire = {
 			}
 			let localPath = this._getImageCacheLocalPath(cdnUrl);
 			if (element.tagName === 'IMG') {
-				if (options.inSdkLevel) {
+				if (options.useSdk) {
 					this._handleImageElement(originalSrc, cdnUrl, localPath, options, element, callback);
 				} else {
 					this._handleImage_AppVersion(originalSrc, cdnUrl, options, element, callback);
 				}
 			} else {
-				if (options.inSdkLevel) {
+				if (options.useSdk) {
 					this._handleBgImage(originalSrc, cdnUrl, localPath, options, element, callback);
 				} else {
 					this._handleBgImage_AppVersion(originalSrc, cdnUrl, options, element, callback);
@@ -2648,14 +2648,18 @@ var buildfire = {
 			element.onload = function () {
 				element.style.removeProperty('opacity');
 				if (callback) callback(null, localPath);
+				var p = new Packet(null, 'imageCache.updateCacheUsage', localPath);
+				buildfire._sendPacket(p, function (err, result) {
+					if(err) console.error(err);
+				});
 			};
 
 			element.onerror = function () {
+				element.onload = null; // reset onload to not be called later
 				self._imageErrorFallback(originalSrc, cdnUrl, options, element, callback);
 			};
 		},
 		_imageErrorFallback: function (originalSrc, cdnUrl, options, element, callback) {
-			let self  = this;
 			let localPath = this._getImageLibLocalPath(originalSrc);
 			if (options.imageProcess === 'crop') {
 				options.cdnUrl = cdnUrl;
@@ -2772,11 +2776,9 @@ var buildfire = {
 		},
 		_getImageCacheLocalPath: function (url) {
 			url = url.replace(/(http|https):\/\/\S{0,8}.cloudimg.io\//g, '');
-			let extension = url.match(/(png|jpg|jpeg)/g)[0] || '';
-			extension = extension ? '.' + extension : '';
 			let hash = this._getHash(url);
 
-			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageCache/images') + '/' + hash + extension;
+			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageCache/images') + '/' + hash;
 		},
 		_getImageLibLocalPath: function (url) {
 			let imageName = new URL(url).pathname.split("/").slice(-1).pop();
@@ -2845,12 +2847,18 @@ var buildfire = {
 				if (options.width == 'full') options.width = window.innerWidth;
 				if (options.height == 'full') options.height = window.innerHeight;
 
+				let self = this;
 				let img = new Image();
 				img.src = url;
 				img.onload = function () {
 					let resizeWidth, resizeHeight;
-					let optionsRatio = options.width / options.height;
 					let imageRatio = img.width / img.height;
+					if (options.width && !options.height) {
+						options.height = options.width / imageRatio;
+					} else if (!options.width && options.height) {
+						options.width = options.height * imageRatio;
+					}
+					let optionsRatio = options.width / options.height;
 					if (imageRatio > optionsRatio) {
 						resizeWidth = options.width;
 						resizeHeight = options.width / imageRatio;
@@ -2868,10 +2876,14 @@ var buildfire = {
 					canvas.height = finalHeight;
 					ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
 
-					callback(null, canvas.toDataURL());
+					if (callback) callback(null, canvas.toDataURL());
+					if (options.cdnUrl) {
+						self._saveCanvasLocally(canvas, options.cdnUrl);
+					}
+					self._releaseCanvas(canvas);
 				};
 				img.onerror = function () {
-					callback('error in loading canvas', null);
+					if (callback) callback('error in loading canvas', null);
 				};
 			}
 			, cropImage: function (url, options, callback) {
@@ -2895,8 +2907,13 @@ var buildfire = {
 						x: 0,
 						y: 0
 					};
-					let optionsRatio = options.width / options.height;
 					let imageRatio = img.width / img.height;
+					if (options.width && !options.height) {
+						options.height = options.width / imageRatio;
+					} else if (!options.width && options.height) {
+						options.width = options.height * imageRatio;
+					}
+					let optionsRatio = options.width / options.height;
 					if (imageRatio > optionsRatio) {
 						cuttingDimension.height = img.height;
 						cuttingDimension.width = img.height * optionsRatio;
@@ -2912,30 +2929,43 @@ var buildfire = {
 					let canvas = document.createElement('canvas');
 					let ctx = canvas.getContext('2d');
 					let ratio = options.disablePixelRatio ? 1 : window.devicePixelRatio;
-					let providedWidth = options.width * ratio;
-					let providedHeight = options.height * ratio;
-					canvas.width = providedWidth;
-					canvas.height = providedHeight;
-					ctx.drawImage(img, cuttingOffset.x, cuttingOffset.y, cuttingDimension.width, cuttingDimension.height, 0, 0, providedWidth , providedHeight);
+					let finalWidth = options.width * ratio;
+					let finalHeight = options.height * ratio;
+					canvas.width = finalWidth;
+					canvas.height = finalHeight;
+					ctx.drawImage(img, cuttingOffset.x, cuttingOffset.y, cuttingDimension.width, cuttingDimension.height, 0, 0, finalWidth , finalHeight);
+
+					if (callback) callback(null, canvas.toDataURL());
 					if (options.cdnUrl) {
 						self._saveCanvasLocally(canvas, options.cdnUrl);
 					}
-					callback(null, canvas.toDataURL());
+					self._releaseCanvas(canvas);
 				};
 				img.onerror = function () {
-					callback('error in loading canvas', null);
+					if (callback) callback('error in loading canvas', null);
 				};
+			}
+			, _releaseCanvas: function(canvas) {
+				canvas.width = 1;
+				canvas.height = 1;
+				const ctx = canvas.getContext('2d');
+				ctx && ctx.clearRect(0, 0, 1, 1);
 			}
 			, _saveCanvasLocally: function(canvas, cdnUrl) {
 				canvas.toBlob((res) => {
+					if (!res) {
+						return console.warn('Error in getting blob from canvas');
+					}
 					let hash = buildfire.imageLib._getHash(cdnUrl);
 					let cacheOptions = {
 						path: '/imageCache/images',
-						fileName: hash + '.png',
+						fileName: hash + '',
 						blob: res
 					}
 					var p = new Packet(null, 'fileManager.writeBlobToFile', cacheOptions);
-					buildfire._sendPacket(p, function () {
+					buildfire._sendPacket(p, function (err, result) {
+						if(err) console.error(err);
+						res = null; // remove the reference of blob
 					});
 				}, 'image/webp');
 			}

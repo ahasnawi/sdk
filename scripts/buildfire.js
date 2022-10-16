@@ -2718,6 +2718,7 @@ var buildfire = {
 							if (callback) callback(null, result);
 						};
 						element.onerror = function () {
+							element.onload = null; // reset onload to not be called
 							element.src = cdnUrl;
 							element.style.removeProperty('opacity');
 							if (callback) callback(null, cdnUrl);

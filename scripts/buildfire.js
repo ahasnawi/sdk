@@ -2512,6 +2512,7 @@ var buildfire = {
 		, resizeImage: function (url, options, element, callback) {
 			if (!url) return false;
 			if (!this._isValidImageUrl(url, options)) {
+				if (callback) callback(null, url);
 				return url;
 			}
 			if (!options) {
@@ -2528,6 +2529,7 @@ var buildfire = {
 		, cropImage: function (url, options, element, callback) {
 			if (!url) return false;
 			if (!this._isValidImageUrl(url, options)) {
+				if (callback) callback(null, url);
 				return url;
 			}
 			if (!options) {
@@ -2639,8 +2641,8 @@ var buildfire = {
 					this._handleBgImage_AppVersion(originalSrc, cdnUrl, options, element, callback);
 				}
 			}
-		},
-		_handleImageElement: function (originalSrc, cdnUrl, localPath, options, element, callback) {
+		}
+		, _handleImageElement: function (originalSrc, cdnUrl, localPath, options, element, callback) {
 			element.style.setProperty('opacity', '0', 'important');
 			element.src = localPath;
 			let self  = this;
@@ -2658,8 +2660,45 @@ var buildfire = {
 				element.onload = null; // reset onload to not be called later
 				self._imageErrorFallback(originalSrc, cdnUrl, options, element, callback);
 			};
-		},
-		_imageErrorFallback: function (originalSrc, cdnUrl, options, element, callback) {
+		}
+		, _handleBgImage: function (originalSrc, cdnUrl, localPath, options, element, callback) {
+			let self = this;
+			applyStyle(element, localPath);
+
+			let img = new Image();
+			img.src = localPath;
+
+			img.onload = function () {
+				if (callback) callback(null, localPath);
+				var p = new Packet(null, 'imageCache.updateCacheUsage', localPath);
+				buildfire._sendPacket(p, function (err, result) {
+					if(err) console.error(err);
+				});
+			};
+
+			img.onerror = function () {
+				self._imageErrorFallback(originalSrc, cdnUrl, options, element, (err, result) => {
+					if (err) {
+						applyStyle(element, cdnUrl);
+						if (callback) callback(null, cdnUrl);
+						return;
+					}
+					applyStyle(element, result);
+					window.requestAnimationFrame(function () {
+						if (callback) callback(null, result);
+					});
+				});
+			};
+
+			function applyStyle(ele, source) {
+				if (!source) {
+					return ele.style.removeProperty('background-image');
+				}
+				let backgroundCss = 'url("' + source + '")';
+				ele.style.setProperty('background-image', backgroundCss, 'important');
+			}
+		}
+		, _imageErrorFallback: function (originalSrc, cdnUrl, options, element, callback) {
 			let localPath = this._getImageLibLocalPath(originalSrc);
 			if (options.imageProcess === 'crop') {
 				options.cdnUrl = cdnUrl;
@@ -2695,11 +2734,6 @@ var buildfire = {
 					console.log('Error occurred while cropping image: ', err);
 				}
 			}
-		}
-		, _saveCdnImage: function(cdnUrl) {
-			var p = new Packet(null, 'imageCache.download', cdnUrl);
-			buildfire._sendPacket(p, function () {
-			});
 		}
 		, _handleImage_AppVersion: function (originalSrc, cdnUrl, options, element, callback) {
 			options.originalSrc = originalSrc;
@@ -2741,50 +2775,16 @@ var buildfire = {
 				ele.style.setProperty('background-image', backgroundCss, 'important');
 			}
 		}
-		, _handleBgImage: function (originalSrc, cdnUrl, localPath, options, element, callback) {
-			let self = this;
-			applyStyle(element, localPath);
-
-			let img = new Image();
-			img.src = localPath;
-
-			img.onload = function () {
-				if (callback) callback(null, localPath);
-			};
-
-			img.onerror = function () {
-				self._imageErrorFallback(originalSrc, cdnUrl, options, element, (err, result) => {
-					if (err) {
-						applyStyle(element, cdnUrl);
-						if (callback) callback(null, cdnUrl);
-						return;
-					}
-					applyStyle(element, result);
-					window.requestAnimationFrame(function () {
-						if (callback) callback(null, result);
-					});
-				});
-			};
-
-			function applyStyle(ele, source) {
-				if (!source) {
-					return ele.style.removeProperty('background-image');
-				}
-				let backgroundCss = 'url("' + source + '")';
-				ele.style.setProperty('background-image', backgroundCss, 'important');
-			}
-		},
-		_getImageCacheLocalPath: function (url) {
+		, _getImageCacheLocalPath: function (url) {
 			url = url.replace(/(http|https):\/\/\S{0,8}.cloudimg.io\//g, '');
 			let hash = this._getHash(url);
-
 			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageCache/images') + '/' + hash;
-		},
-		_getImageLibLocalPath: function (url) {
+		}
+		, _getImageLibLocalPath: function (url) {
 			let imageName = new URL(url).pathname.split("/").slice(-1).pop();
 			return buildfire.getContext().endPoints.pluginHost.replace('pluginTemplate/plugins', 'imageLib') + '/' + imageName;
-		},
-		_getHash: function(url) {
+		}
+		, _getHash: function(url) {
 			let hash = 0;
 			if (!url.length) return hash;
 	
@@ -2794,8 +2794,8 @@ var buildfire = {
 				hash |= 0; // Convert to 32bit integer
 			}
 			return hash;
-		},
-		clearImageCache: function () {
+		}
+		, clearImageCache: function () {
 			if (buildfire.isWeb()) {
 				console.error("Can't clear cache on web");
 				return;

@@ -2719,6 +2719,7 @@ var buildfire = {
 						};
 						element.onerror = function () {
 							element.src = cdnUrl;
+							element.style.removeProperty('opacity');
 							if (callback) callback(null, cdnUrl);
 						};
 					} else {
@@ -2727,6 +2728,7 @@ var buildfire = {
 				} else {
 					if (element.tagName === 'IMG') {
 						element.src = cdnUrl;
+						element.style.removeProperty('opacity');
 						if (callback) callback(null, cdnUrl);
 					} else {
 						if (callback) callback(null, cdnUrl);

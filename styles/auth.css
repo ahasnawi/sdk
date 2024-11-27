@@ -514,17 +514,21 @@ html[type='app'] .modal .modal-dialog {
   display: flex;
   align-items: center;
 }
-.register-options.light .btn-apple {
+.register-options.light .btn-apple,
+.register-options.light .btn-twitter {
   background-color: #000 !important;
 }
-.register-options.light .btn-apple span {
+.register-options.light .btn-apple span,
+.register-options.light .btn-twitter span {
   color: #fff !important;
 }
-.register-options.dark .btn-apple {
+.register-options.dark .btn-apple,
+.register-options.dark .btn-twitter {
   background-color: #fff !important;
   border: 1px solid #000 !important;
 }
-.register-options.dark .btn-apple span {
+.register-options.dark .btn-apple span,
+.register-options.dark .btn-twitter span  {
   color: #000 !important;
 }
 .register-options .btn-fb{
@@ -533,13 +537,6 @@ html[type='app'] .modal .modal-dialog {
 }
 .register-options .btn-fb span{
   color: #fff !important;
-}
-.register-options .btn-twitter{
-  background-color: #fff !important;
-  color: #000 !important
-}
-.register-options .btn-twitter span{
-  color: #000 !important;
 }
 .register-options.dark .btn-google{
   background-color: #fff;

@@ -68,8 +68,9 @@ buildfire.services.camera.stopCustomCamera = function (options, callback) {
 	buildfire._sendPacket(new Packet(null, 'camera.stopCustomCamera', options), callback);
 };
 
-buildfire.services.camera.showCustomCameraMessage = function (data) {
-	buildfire._sendPacket(new Packet(null, 'camera.showCustomCameraMessage', data));
+buildfire.services.camera.showCustomCameraMessage = function (options, callback) {
+	if (!options) options = {};
+	buildfire._sendPacket(new Packet(null, 'camera.showCustomCameraMessage', options), callback);
 };
 
 buildfire.services.camera.triggerOnPictureFrame = function (data) {

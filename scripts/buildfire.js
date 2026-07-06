@@ -439,6 +439,7 @@ var buildfire = {
 		, 'services.reportAbuse._triggerOnAdminResponse'
 		, 'geo.session._triggerOnSessionWatchChange'
         , 'analytics.injectAmplitude'
+		, 'services.camera.triggerOnPictureFrame'
 	]
 	, _postMessageHandler: function (e) {
 		if (e.source === window) {

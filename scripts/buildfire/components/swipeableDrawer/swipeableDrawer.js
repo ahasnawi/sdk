@@ -38,6 +38,7 @@ const _swipeableDrawerElements = {
 const _swipeableDrawerUtils = {
 	calcBottomMargin: () => {
 		const headerHasOptions = _swipeableDrawerState.header && _swipeableDrawerState.header.length;
+		const safeAreaInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bf-safe-area-inset-bottom')) || 0;
 
 		let maxHeight = _swipeableDrawerConstants.screenHeight - _swipeableDrawerConstants.topMargin;
 		let minHeight = _swipeableDrawerState.minHeight && _swipeableDrawerState.minHeight > maxHeight ? maxHeight : _swipeableDrawerState.minHeight;
@@ -47,7 +48,7 @@ const _swipeableDrawerUtils = {
 		} else if (!headerHasOptions && document.querySelector('html').getAttribute('safe-area') === 'true') {
 			margin = minHeight ? minHeight : 70;
 		}
-		return margin;
+		return margin + safeAreaInset;
 	},
 	calcMiddlePosition: () => {
 		let defaultMaximumHeight = _swipeableDrawerConstants.screenHeight - _swipeableDrawerConstants.topMargin;

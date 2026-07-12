@@ -13,6 +13,7 @@
     flex-direction: column;
     gap: 10px;
     left: 0;
+    padding-bottom: calc(var(--bf-safe-area-inset-bottom) + 15px);
 }
 
 .swipeable-drawer:hover {
@@ -58,4 +59,16 @@
     height: 100%;
     background-color: rgba(0, 0, 0, 0.50);
     z-index: 99; /* Behind the drawer */
+}
+
+.swipeable-drawer-fade-on-device-buttons::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--bf-safe-area-inset-bottom) + 30px);
+    background: linear-gradient(to top, var(--bf-theme-background, #ffffff) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 10;
 }

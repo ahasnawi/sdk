@@ -16,6 +16,7 @@ let _swipeableDrawerState = {
 	maxHeight: null,
 	backdropEnabled: false,
 	backdropShadow: null,
+	fadeOnDeviceButtons: true,
 };
 
 const _swipeableDrawerConstants = {
@@ -29,6 +30,7 @@ const _swipeableDrawerConstants = {
 
 const _swipeableDrawerElements = {
 	drawerContainer: document.querySelector('.swipeable-drawer'),
+	drawerWrapper: null,
 	drawerHeaderContent: document.querySelector('.swipeable-drawer-header'),
 	drawerContent: document.querySelector('.swipeable-drawer-content'),
 	drawerFooter: document.querySelector('.swipeable-drawer-footer'),
@@ -36,6 +38,15 @@ const _swipeableDrawerElements = {
 };
 
 const _swipeableDrawerUtils = {
+	shouldApplyFade: () => {
+		const safeAreaInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bf-safe-area-inset-bottom')) || 0;
+		return navigator.userAgent.match(/Android/i) && _swipeableDrawerState.fadeOnDeviceButtons !== false && safeAreaInset > 0;
+	},
+	applyFadeEffect: (element) => {
+		if (_swipeableDrawerUtils.shouldApplyFade()) {
+			element.classList.add('swipeable-drawer-fade-on-device-buttons');
+		}
+	},
 	calcBottomMargin: () => {
 		const headerHasOptions = _swipeableDrawerState.header && _swipeableDrawerState.header.length;
 
@@ -164,6 +175,7 @@ const _swipeableDrawerUtils = {
 	},
 	buildDrawer: () => {
 		let drawerDiv = _swipeableDrawerUtils.createUIElement('div', 'swipeable-drawer'),
+			drawerWrapper = _swipeableDrawerUtils.createUIElement('div', 'swipeable-drawer-wrapper'),
 			drawerHeader = _swipeableDrawerUtils.createUIElement('div', 'swipeable-drawer-header'),
 			drawerHeaderContent = _swipeableDrawerUtils.createUIElement('div', 'swipeable-drawer-header-content'),
 			resizerHolder = _swipeableDrawerUtils.createUIElement('div', 'swipeable-drawer-resizer-container'),
@@ -180,9 +192,11 @@ const _swipeableDrawerUtils = {
 		drawerHeader.insertBefore(resizerHolder, drawerHeader.firstChild);
 		drawerHeader.appendChild(drawerHeaderContent);
 
-		drawerDiv.appendChild(drawerHeader);
-		drawerDiv.appendChild(drawerContent);
-		drawerDiv.appendChild(drawerFooter);
+		drawerWrapper.appendChild(drawerHeader);
+		drawerWrapper.appendChild(drawerContent);
+		drawerWrapper.appendChild(drawerFooter);
+
+		drawerDiv.appendChild(drawerWrapper);
 
 		if (_swipeableDrawerState.backdropEnabled && !_swipeableDrawerElements.drawerBackdrop) {
 			document.body.appendChild(backdrop);
@@ -201,11 +215,13 @@ const _swipeableDrawerUtils = {
 		drawerDiv.classList.add('swipeable-drawer-hidden');
 
 		_swipeableDrawerElements.drawerContainer = drawerDiv;
+		_swipeableDrawerElements.drawerWrapper = drawerWrapper;
 		_swipeableDrawerElements.drawerHeaderContent = drawerHeaderContent;
 		_swipeableDrawerElements.drawerContent = drawerContent;
 		_swipeableDrawerElements.drawerFooter = drawerFooter;
 		_swipeableDrawerElements.drawerContainer.style.transition = `all ${_swipeableDrawerState.transitionDuration}ms`;
 
+		_swipeableDrawerUtils.applyFadeEffect(_swipeableDrawerElements.drawerWrapper);
 		_swipeableDrawerUtils.reset();
 	}
 };

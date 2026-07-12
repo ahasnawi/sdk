@@ -94,6 +94,9 @@ const _swipeableDrawerUtils = {
 		const positions = _swipeableDrawerUtils.calcPositions();
 		_swipeableDrawerElements.drawerContainer.style.height = `${position ? positions[position] : positions.mid}px`;
 		_swipeableDrawerElements.drawerContainer.style.top = `${_swipeableDrawerConstants.screenHeight - (position ? positions[position] : positions.mid)}px`;
+		setTimeout(() => {
+			_swipeableDrawerUtils.applyFadeEffect()
+		}, _swipeableDrawerState.transitionDuration);
 	},
 	setContent: (element, content, append = false) => {
 		if (typeof content === 'object') {
@@ -332,6 +335,9 @@ buildfire.components.swipeableDrawer = {
 	show() {
 		_swipeableDrawerEvents.initialize();
 		_swipeableDrawerElements.drawerContainer.classList.remove('swipeable-drawer-hidden');
+		setTimeout(() => {
+			_swipeableDrawerUtils.applyFadeEffect()
+		}, _swipeableDrawerState.transitionDuration);
 	},
 	hide() {
 		_swipeableDrawerElements.drawerContainer.classList.add('swipeable-drawer-hidden');

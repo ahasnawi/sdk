@@ -42,9 +42,16 @@ const _swipeableDrawerUtils = {
 		const safeAreaInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bf-safe-area-inset-bottom')) || 0;
 		return navigator.userAgent.match(/Android/i) && _swipeableDrawerState.fadeOnDeviceButtons !== false && safeAreaInset > 0;
 	},
-	applyFadeEffect: (element) => {
+	applyFadeEffect: () => {
 		if (_swipeableDrawerUtils.shouldApplyFade()) {
-			element.classList.add('swipeable-drawer-fade-on-device-buttons');
+			const {height: drawerHeight, y: drawerYPosition} = _swipeableDrawerElements?.drawerContainer?.querySelector('.swipeable-drawer-header')?.getBoundingClientRect()
+			const headerPosition  = drawerYPosition + drawerHeight
+			const safeAreaInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bf-safe-area-inset-bottom')) || 0;
+			if (headerPosition > window.innerHeight - safeAreaInset) {
+				_swipeableDrawerElements.drawerContainer.classList.add('swipeable-drawer-fade-on-device-buttons');
+			} else {
+				_swipeableDrawerElements.drawerContainer.classList.remove('swipeable-drawer-fade-on-device-buttons');
+			}
 		}
 	},
 	calcBottomMargin: () => {
@@ -138,7 +145,9 @@ const _swipeableDrawerUtils = {
 
 			buildfire.components.swipeableDrawer.onStepChange(positionToAdjust);
 		}
-
+		setTimeout(() => {
+			_swipeableDrawerUtils.applyFadeEffect()
+		}, _swipeableDrawerState.transitionDuration);
 	},
 	resize: (e) => {
 		const pageY = e.pageY || e.changedTouches[0]?.pageY;
@@ -148,7 +157,9 @@ const _swipeableDrawerUtils = {
 			_swipeableDrawerElements.drawerContainer.style.height = `${height}px`;
 			_swipeableDrawerElements.drawerContainer.style.top = `${_swipeableDrawerConstants.originalY + (pageY - _swipeableDrawerConstants.originalMouseY)}px`;
 		}
-	},
+		setTimeout(() => {
+			_swipeableDrawerUtils.applyFadeEffect()
+		}, _swipeableDrawerState.transitionDuration);	},
 	createUIElement: (...args) => {
 		let elem = document.createElement(args[0]);
 		elem.className = args[1];
@@ -221,7 +232,7 @@ const _swipeableDrawerUtils = {
 		_swipeableDrawerElements.drawerFooter = drawerFooter;
 		_swipeableDrawerElements.drawerContainer.style.transition = `all ${_swipeableDrawerState.transitionDuration}ms`;
 
-		_swipeableDrawerUtils.applyFadeEffect(_swipeableDrawerElements.drawerWrapper);
+		_swipeableDrawerUtils.applyFadeEffect();
 		_swipeableDrawerUtils.reset();
 	}
 };
